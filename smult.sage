@@ -1,7 +1,18 @@
 #field ops
-def MontInv(field_elems):
-    #todo implement montgomery trick
-    return dict((k, 1/field_elems[k]) for k in field_elems.keys())
+def MontInv(u):
+    keys = tuple(u.keys())    
+    v = [None] * len(keys)
+    v[0] = u[keys[0]]
+    for i in range(1, len(keys)):
+        v[i]  = v[i-1]*u[keys[i]]
+      
+    t = 1 / v[len(keys) - 1]
+    ui = {}
+    for i in range(len(keys) - 1, 0, -1):
+        ui[keys[i]] = v[i-1] * t
+        t = t * u[keys[i]]
+    ui[keys[0]] = t
+    return ui
 
 def mul2(a, b, a2, b2):
     return ((a + b)^2 - a2 - b2) / 2
@@ -129,7 +140,6 @@ def ecDblJAddA(E, P1J, P2):
     return (t1, t2, t3)
 
 def ecDblAdd(E, P1J, P2, smult_alg):
-    #todo implement for affine P2
     if smult_alg == SmallMultA:
         return ecDblJAddA(E, P1J, P2)
     if smult_alg == SmallMultJ:
@@ -374,8 +384,8 @@ def digitize(n, base, k):
         yield d
 
 def ScalarMult(E, P, d, smult_alg):
-    d_odd = d % 2
-    d = (1 - d_odd) * E.order() + (2*d_odd - 1)*d  
+    d_even = d % 2
+    d = (1 - d_even) * E.order() + (2*d_even - 1)*d  
     l = int(E.order()).bit_length()
     w = smultWidth(l, smult_alg)
     pre = smult_alg(E, P, w)
@@ -405,11 +415,12 @@ def ScalarMult(E, P, d, smult_alg):
         Q = ecDblAdd(E, Q, pre[digits[0]], smult_alg)
         Q = ecJToA(Q)
 
-    #todo impl safe
-    if (d_odd - 1):
-        Q = ecNeg(Q)
-    
+    Q = ecChangeSign(Q, bool(d_even))
     return Q
+
+def ecChangeSign(P, change_sign):
+    X, Y, Z = P
+    return (X, (-1)^(1-change_sign) * Y, Z)
 
 def testSmallMult(E, P):
     w = 6
@@ -433,6 +444,8 @@ def testScalarMult(E, P):
 
 def testCurve(E):    
     P = E.random_element()
+    while P.is_zero():
+        P = E.random_element() 
     print(P)
     testSmallMult(E, P)
     testScalarMult(E, P)
